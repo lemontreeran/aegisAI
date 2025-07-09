@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 import json
 from datetime import datetime
 
-from orchestrator import AegisOrchestrator
+from backend.orchestrator import AegisOrchestrator
 
 app = FastAPI(title="AegisAI Governance API", version="1.0.0")
 

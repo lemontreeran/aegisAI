@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, Search, AlertTriangle, FileText, Lightbulb, MessageSquare } from 'lucide-react';
+import { usePromptAnalysis, useOutputAudit } from '../hooks/useGovernance';
 
 interface User {
   username: string;
@@ -15,7 +16,10 @@ const GovernanceAgents: React.FC<GovernanceAgentsProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState('prompt-guard');
   const [promptText, setPromptText] = useState('');
   const [outputText, setOutputText] = useState('');
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  
+  // Use governance hooks
+  const { data: promptAnalysis, loading: promptLoading, error: promptError, analyzePrompt } = usePromptAnalysis();
+  const { data: outputAudit, loading: outputLoading, error: outputError, auditOutput } = useOutputAudit();
 
   const tabs = [
     { id: 'prompt-guard', label: 'Prompt Guard', icon: Shield },
@@ -26,28 +30,24 @@ const GovernanceAgents: React.FC<GovernanceAgentsProps> = ({ user }) => {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ];
 
-  const analyzePrompt = () => {
-    // Mock analysis
-    const mockResult = {
-      status: Math.random() > 0.7 ? 'BLOCKED' : Math.random() > 0.4 ? 'WARNING' : 'APPROVED',
-      risk_score: Math.random() * 10,
-      confidence: 85 + Math.random() * 15,
-      issues: Math.random() > 0.5 ? ['Potential bias detected', 'Sensitive content identified'] : [],
-      suggestions: ['Consider rephrasing to be more neutral', 'Add context for clarity']
-    };
-    setAnalysisResult(mockResult);
+  const handlePromptAnalysis = async () => {
+    if (!promptText.trim()) return;
+    
+    try {
+      await analyzePrompt(promptText);
+    } catch (error) {
+      console.error('Prompt analysis failed:', error);
+    }
   };
 
-  const auditOutput = () => {
-    // Mock audit
-    const mockResult = {
-      bias_score: Math.random() * 10,
-      toxicity: Math.random() * 100,
-      fairness: 7 + Math.random() * 3,
-      violations: Math.random() > 0.7 ? ['Gender bias detected'] : [],
-      recommendations: ['Review for inclusive language', 'Consider alternative phrasing']
-    };
-    setAnalysisResult(mockResult);
+  const handleOutputAudit = async () => {
+    if (!outputText.trim()) return;
+    
+    try {
+      await auditOutput(outputText, { prompt: promptText });
+    } catch (error) {
+      console.error('Output audit failed:', error);
+    }
   };
 
   const renderPromptGuard = () => (
@@ -69,50 +69,66 @@ const GovernanceAgents: React.FC<GovernanceAgentsProps> = ({ user }) => {
             placeholder="Enter a prompt to test for compliance..."
           />
           <button
-            onClick={analyzePrompt}
-            disabled={!promptText}
-            className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+            onClick={handlePromptAnalysis}
+            disabled={!promptText || promptLoading}
+            className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors flex items-center space-x-2"
           >
-            Analyze Prompt
+            {promptLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
+            <span>{promptLoading ? 'Analyzing...' : 'Analyze Prompt'}</span>
           </button>
 
-          {analysisResult && (
+          {promptError && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-800">Error: {promptError}</p>
+            </div>
+          )}
+
+          {promptAnalysis && (
             <div className="mt-6 bg-white border border-gray-200 rounded-lg p-6">
               <h4 className="text-lg font-semibold mb-4">Analysis Results</h4>
               
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="text-center">
                   <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                    analysisResult.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                    analysisResult.status === 'WARNING' ? 'bg-yellow-100 text-yellow-800' :
+                    promptAnalysis.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                    promptAnalysis.status === 'WARNING' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-red-100 text-red-800'
                   }`}>
-                    {analysisResult.status}
+                    {promptAnalysis.status}
                   </div>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900">{analysisResult.risk_score.toFixed(1)}</p>
+                  <p className="text-2xl font-bold text-gray-900">{promptAnalysis.risk_score.toFixed(1)}</p>
                   <p className="text-sm text-gray-600">Risk Score</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900">{analysisResult.confidence.toFixed(1)}%</p>
+                  <p className="text-2xl font-bold text-gray-900">{promptAnalysis.confidence.toFixed(1)}%</p>
                   <p className="text-sm text-gray-600">Confidence</p>
                 </div>
               </div>
 
-              {analysisResult.issues.length > 0 && (
+              {promptAnalysis.policy_violations.length > 0 && (
                 <div className="mb-4">
-                  <h5 className="font-medium text-red-800 mb-2">Identified Issues</h5>
-                  {analysisResult.issues.map((issue: string, index: number) => (
+                  <h5 className="font-medium text-red-800 mb-2">Policy Violations</h5>
+                  {promptAnalysis.policy_violations.map((issue: string, index: number) => (
                     <div key={index} className="text-red-700 text-sm">• {issue}</div>
                   ))}
                 </div>
               )}
 
-              {analysisResult.suggestions.length > 0 && (
+              {promptAnalysis.content_flags.length > 0 && (
+                <div className="mb-4">
+                  <h5 className="font-medium text-yellow-800 mb-2">Content Flags</h5>
+                  {promptAnalysis.content_flags.map((flag: string, index: number) => (
+                    <div key={index} className="text-yellow-700 text-sm">• {flag}</div>
+                  ))}
+                </div>
+              )}
+
+              {promptAnalysis.suggestions.length > 0 && (
                 <div>
                   <h5 className="font-medium text-blue-800 mb-2">Suggestions</h5>
-                  {analysisResult.suggestions.map((suggestion: string, index: number) => (
+                  {promptAnalysis.suggestions.map((suggestion: string, index: number) => (
                     <div key={index} className="text-blue-700 text-sm">• {suggestion}</div>
                   ))}
                 </div>
@@ -178,45 +194,62 @@ const GovernanceAgents: React.FC<GovernanceAgentsProps> = ({ user }) => {
         </div>
 
         <button
-          onClick={auditOutput}
-          disabled={!outputText}
-          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+          onClick={handleOutputAudit}
+          disabled={!outputText || outputLoading}
+          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors flex items-center space-x-2"
         >
-          Audit Output
+          {outputLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
+          <span>{outputLoading ? 'Auditing...' : 'Audit Output'}</span>
         </button>
 
-        {analysisResult && (
+        {outputError && (
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800">Error: {outputError}</p>
+          </div>
+        )}
+
+        {outputAudit && (
           <div className="bg-white border border-gray-200 rounded-lg p-6">
             <h4 className="text-lg font-semibold mb-4">Audit Results</h4>
             
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{analysisResult.bias_score?.toFixed(1) || '0.0'}</p>
+                <p className="text-2xl font-bold text-gray-900">{outputAudit.bias_score?.toFixed(1) || '0.0'}</p>
                 <p className="text-sm text-gray-600">Bias Score</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{analysisResult.toxicity?.toFixed(1) || '0.0'}%</p>
+                <p className="text-2xl font-bold text-gray-900">{outputAudit.toxicity_score?.toFixed(1) || '0.0'}</p>
                 <p className="text-sm text-gray-600">Toxicity Level</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{analysisResult.fairness?.toFixed(1) || '0.0'}</p>
+                <p className="text-2xl font-bold text-gray-900">{outputAudit.fairness_score?.toFixed(1) || '0.0'}</p>
                 <p className="text-sm text-gray-600">Fairness Rating</p>
               </div>
             </div>
 
-            {analysisResult.violations?.length > 0 && (
+            <div className="mb-4">
+              <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                outputAudit.audit_status === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                outputAudit.audit_status === 'REVIEW_RECOMMENDED' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {outputAudit.audit_status}
+              </div>
+            </div>
+
+            {outputAudit.policy_violations?.length > 0 && (
               <div className="mb-4">
                 <h5 className="font-medium text-red-800 mb-2">Policy Violations</h5>
-                {analysisResult.violations.map((violation: string, index: number) => (
+                {outputAudit.policy_violations.map((violation: string, index: number) => (
                   <div key={index} className="text-red-700 text-sm">• {violation}</div>
                 ))}
               </div>
             )}
 
-            {analysisResult.recommendations?.length > 0 && (
+            {outputAudit.recommendations?.length > 0 && (
               <div>
                 <h5 className="font-medium text-blue-800 mb-2">Recommendations</h5>
-                {analysisResult.recommendations.map((rec: string, index: number) => (
+                {outputAudit.recommendations.map((rec: string, index: number) => (
                   <div key={index} className="text-blue-700 text-sm">• {rec}</div>
                 ))}
               </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Shield } from 'lucide-react';
+import { authenticateUser } from '../services/auth';
 
 interface User {
   username: string;
@@ -26,20 +27,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     e.preventDefault();
     setError('');
 
-    // Simple authentication logic
-    if (username === 'admin' && password === 'admin123') {
-      onLogin(demoUsers.admin);
-    } else if (username === 'analyst' && password === 'analyst123') {
-      onLogin(demoUsers.analyst);
-    } else if (username === 'user' && password === 'user123') {
-      onLogin(demoUsers.user);
-    } else {
-      setError('Invalid credentials');
-    }
+    // Use authentication service
+    authenticateUser({ username, password })
+      .then((authResponse) => {
+        onLogin(authResponse.user);
+      })
+      .catch((error) => {
+        setError(error.message || 'Authentication failed');
+      });
   };
 
-  const handleDemoAccess = () => {
-    onLogin(demoUsers.admin);
+  const handleDemoAccess = async (role: string = 'admin') => {
+    try {
+      const authResponse = await authenticateUser({ role });
+      onLogin(authResponse.user);
+    } catch (error) {
+      setError('Demo access failed');
+    }
   };
 
   return (
@@ -103,7 +107,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               </button>
               <button
                 type="button"
-                onClick={handleDemoAccess}
+                onClick={() => handleDemoAccess('admin')}
                 className="w-full bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors font-medium"
               >
                 Demo Access
@@ -118,6 +122,26 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               <div><strong>Admin:</strong> admin / admin123</div>
               <div><strong>Analyst:</strong> analyst / analyst123</div>
               <div><strong>User:</strong> user / user123</div>
+            </div>
+            <div className="mt-2 flex space-x-2">
+              <button
+                onClick={() => handleDemoAccess('admin')}
+                className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded"
+              >
+                Demo Admin
+              </button>
+              <button
+                onClick={() => handleDemoAccess('analyst')}
+                className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded"
+              >
+                Demo Analyst
+              </button>
+              <button
+                onClick={() => handleDemoAccess('user')}
+                className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded"
+              >
+                Demo User
+              </button>
             </div>
           </div>
         </div>
