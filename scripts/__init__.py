@@ -1,0 +1,1 @@
+# Setup scripts for AegisAI infrastructure
