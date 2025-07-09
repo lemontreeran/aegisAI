@@ -179,6 +179,7 @@ cython_debug/
 docker-compose.override.yml
 
 # Node.js dependencies
+node_modules/
 */node_modules/
 
 # React-specific
