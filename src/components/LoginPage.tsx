@@ -27,8 +27,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     e.preventDefault();
     setError('');
 
-    // Use authentication service
-    authenticateUser({ username, password })
+    // Map username to role for demo authentication
+    const userRole = demoUsers[username as keyof typeof demoUsers]?.role.toLowerCase() || 'user';
+    
+    // Use authentication service with role
+    authenticateUser({ role: userRole })
       .then((authResponse) => {
         onLogin(authResponse.user);
       })

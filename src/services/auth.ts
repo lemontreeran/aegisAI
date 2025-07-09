@@ -29,37 +29,12 @@ class AuthService {
 
   async authenticateUser(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      // For demo mode, use role-based authentication
-      if (credentials.role) {
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.DEMO_LOGIN}?role=${credentials.role}`);
-        
-        if (!response.ok) {
-          throw new Error('Authentication failed');
-        }
-        
-        const data = await response.json();
-        
-        // Store token
-        this.token = data.token;
-        localStorage.setItem('auth_token', data.token);
-        
-        return data;
-      }
-      
-      // For production mode with username/password
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: credentials.username,
-          password: credentials.password,
-        }),
-      });
+      // Use demo login endpoint with role-based authentication
+      const role = credentials.role || 'user';
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.DEMO_LOGIN}?role=${role}`);
       
       if (!response.ok) {
-        throw new Error('Invalid credentials');
+        throw new Error('Authentication failed');
       }
       
       const data = await response.json();
@@ -69,7 +44,6 @@ class AuthService {
       localStorage.setItem('auth_token', data.token);
       
       return data;
-      
     } catch (error) {
       console.error('Authentication error:', error);
       throw error;
