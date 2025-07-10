@@ -10,13 +10,20 @@ class PromptGuardAgent(BaseAgent):
     """Agent that screens prompts for compliance violations"""
     
     def __init__(self, config: Dict[str, Any] = None):
+        # Load environment variables from .env
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+
         super().__init__("PromptGuardAgent", config)
         self.risk_keywords = [
             "hack", "exploit", "bypass", "jailbreak", "ignore instructions",
             "violence", "harmful", "illegal", "discriminatory", "bias",
             "personal information", "private data", "confidential"
         ]
-        self.policy_table = self.dynamodb.Table('aegis-policies')
+        # Load policy table name from env or fallback
+        table_name = os.getenv("DYNAMODB_POLICIES_TABLE", "aegis-policies")
+        self.policy_table = self.dynamodb.Table(table_name)
     
     def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """Screen prompt for compliance issues"""
