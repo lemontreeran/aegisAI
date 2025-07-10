@@ -25,9 +25,36 @@ def create_opensearch_domain():
     try:
         response = opensearch_client.describe_domain(DomainName=domain_name)
         print(f"⚠ OpenSearch domain '{domain_name}' already exists")
-        domain_endpoint = response['DomainStatus']['Endpoint']
-        print(f"Domain endpoint: https://{domain_endpoint}")
-        return domain_endpoint
+        
+        # Check if domain is active and has endpoint
+        domain_status = response['DomainStatus']
+        if not domain_status.get('Processing', True) and 'Endpoint' in domain_status:
+            domain_endpoint = domain_status['Endpoint']
+            print(f"Domain endpoint: https://{domain_endpoint}")
+            return domain_endpoint
+        else:
+            print("Domain exists but is still being created or doesn't have endpoint yet")
+            print("Waiting for domain to be ready...")
+            
+            # Wait for existing domain to be ready
+            while True:
+                try:
+                    status_response = opensearch_client.describe_domain(DomainName=domain_name)
+                    processing = status_response['DomainStatus'].get('Processing', True)
+                    
+                    if not processing and 'Endpoint' in status_response['DomainStatus']:
+                        domain_endpoint = status_response['DomainStatus']['Endpoint']
+                        print(f"✓ Domain '{domain_name}' is now ready!")
+                        print(f"Domain endpoint: https://{domain_endpoint}")
+                        return domain_endpoint
+                    else:
+                        print("Still processing... (this may take several minutes)")
+                        time.sleep(60)
+                        
+                except ClientError as e:
+                    print(f"✗ Error checking domain status: {e}")
+                    return None
+                    
     except ClientError as e:
         if e.response['Error']['Code'] != 'ResourceNotFoundException':
             print(f"✗ Error checking domain: {e}")
@@ -36,7 +63,7 @@ def create_opensearch_domain():
     # Domain configuration
     domain_config = {
         'DomainName': domain_name,
-        'OpenSearchVersion': '2.3',
+        'EngineVersion': 'OpenSearch_2.3',
         'ClusterConfig': {
             'InstanceType': 't3.small.search',
             'InstanceCount': 1,
@@ -90,16 +117,30 @@ def create_opensearch_domain():
         print("Waiting for domain to be active...")
         
         # Wait for domain to be active
+        max_wait_time = 30 * 60  # 30 minutes maximum wait time
+        start_time = time.time()
+        
         while True:
+            # Check if we've exceeded maximum wait time
+            if time.time() - start_time > max_wait_time:
+                print("✗ Timeout waiting for domain to be ready (30 minutes)")
+                print("The domain may still be creating. Check AWS console for status.")
+                return None
+                
             try:
                 status_response = opensearch_client.describe_domain(DomainName=domain_name)
-                processing = status_response['DomainStatus']['Processing']
+                domain_status = status_response['DomainStatus']
+                processing = domain_status.get('Processing', True)
                 
-                if not processing:
-                    domain_endpoint = status_response['DomainStatus']['Endpoint']
+                if not processing and 'Endpoint' in domain_status:
+                    # Check if endpoint is available
+                    domain_endpoint = domain_status['Endpoint']
                     print(f"✓ Domain '{domain_name}' is now active!")
                     print(f"Domain endpoint: https://{domain_endpoint}")
                     return domain_endpoint
+                elif not processing:
+                    print("Domain is active but endpoint not yet available, waiting...")
+                    time.sleep(30)
                 else:
                     print("Still processing... (this may take several minutes)")
                     time.sleep(60)  # Wait 1 minute before checking again
